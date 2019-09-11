@@ -8,6 +8,7 @@ import os
 import csv
 import re
 import traceback
+import datetime
 
 debugline = 0
 
@@ -55,13 +56,41 @@ def append_message(msg, apd):
         return apd
     else:
         return msg + '\n' + apd
+
+def get_error_message(type):
+    msg = 'unknown error'
+    if type == 1:
+        msg = '少星號'
+    elif type == 2:
+        msg = '星號後少空白'
+    elif type == 3:
+        msg = 'Scriptlet錯誤'
+    elif type == 4:
+        msg = 'ID錯誤'
+    elif type == 5:
+        msg = '缺少第二行'
+    elif type == 6:
+        msg = '第二行冒號後少空白'
+    elif type == 7:
+        msg = '第二行少#號'
+    elif type == 8:
+        msg = '少<p>'
+    elif type == 9:
+        msg = '缺少第三行'
+    elif type == 10:
+        msg = '缺少第四行'
+    elif type == 11:
+        msg = '缺少空白行'
+    return msg
         
+    
 def check_correct(java_path):
     global debugline
     debug = False
-    #print(java_path)
     tokens = re.split(r'[\\/]', java_path)
     print(tokens[-1])
+    with open("Output.txt", "a") as text_file:
+        text_file.write('\n<' + tokens[-1] + '>')
     begincount = 0
     endcount = 0
     spaceline = 0
@@ -71,6 +100,7 @@ def check_correct(java_path):
         functionScript = None
         errormessage = ''
         ERR_COUUNT = 0
+        ERR_SET = set()
         for i, line in enumerate(f_content):
             linestr = str(line)
             debugline = i
@@ -83,6 +113,7 @@ def check_correct(java_path):
                 parseStage = 0
                 functionScript = None
                 errormessage = ''
+                ERR_SET = set()
                 continue
             elif inblock and '*/' in linestr:
                 endcount += 1
@@ -90,14 +121,12 @@ def check_correct(java_path):
                     parseStage = 7
                 continue
             elif inblock and not linestr.lstrip().startswith('*'):
-                #print(str(i+1) + ': ' + 'wrong format1 : star is required')
-                #errormessage = errormessage + str(i+1) + ': ' + 'wrong format3 : star is required\n'
-                errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong format3 : 少星號')
+                errormessage = append_message(errormessage, str(i+1) + ': ' + '1-' + get_error_message(1))
+                ERR_SET.add(1)
             elif inblock and linestr.replace('*','').strip():
                 if not str(line).lstrip().startswith('* '):
-                    #print(str(i+1) + ': ' + 'wrong format4 : need one space before comment')
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong format2 : need one space before comment\n'
-                    errormessage = append_message(errormessage,str(i+1) + ': ' + 'wrong format2 : 星號後少空白')
+                    errormessage = append_message(errormessage,str(i+1) + ': ' + '2-' + get_error_message(2))
+                    ERR_SET.add(2)
 
             if parseStage == 7:
                 if not functionScript:
@@ -110,13 +139,11 @@ def check_correct(java_path):
                     if functionScript:
                         tokens = re.split(r'[@("]', linestr)
                         if tokens[1] != functionScript[0]:
-                            #print(str(i+1) + ': ' + 'wrong fromat8 : Scriptlet type error')
-                            #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat10 : Scriptlet type error\n'
-                            errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat10 : Scriptlet錯誤')
+                            errormessage = append_message(errormessage, str(i+1) + ': ' + '3-' + get_error_message(3))
+                            ERR_SET.add(3)
                         if tokens[3] != functionScript[1]:
-                            #print(str(i+1) + ': ' + 'wrong fromat9 : id name is error')
-                            #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat11 : id name is error\n'
-                            errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat11 : ID錯誤')
+                            errormessage = append_message(errormessage, str(i+1) + ': ' + '4-' + get_error_message(4))
+                            ERR_SET.add(4)
                 elif '@' in linestr:
                     pass
                 else:
@@ -124,9 +151,11 @@ def check_correct(java_path):
             if parseStage == 8:
                 tokens = re.split(r'[ ]', linestr.lstrip())
                 parseStage = -1
-                if tokens[0] == 'public' and errormessage:
-                    print(functionScript[1]+ ':\n' + errormessage)   
-                    ERR_COUUNT += 1
+                if tokens[0] == 'public' and len(ERR_SET) > 0:
+                    #print(functionScript[1]+ ':\n' + errormessage)
+                    with open("Output.txt", "a") as text_file:
+                        for err in ERR_SET:
+                            text_file.write('\n' + functionScript[1] + ': ' + get_error_message(err))
                     
             if not inblock:
                 continue
@@ -134,37 +163,32 @@ def check_correct(java_path):
                 parseStage = 1
                 functionScript = getFunctionScript(linestr)
                 if not functionScript:
-                    #print(str(i+1) + ': ' + 'wrong fromat5 : error line2')
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat3 : error line2\n'
-                    errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat3 : 缺少第二行')
+                    errormessage = append_message(errormessage, str(i+1) + ': ' + '5-' + get_error_message(5))
+                    ERR_SET.add(5)
                 elif linestr.find(': ') == -1:
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat3 : error line2\n'
-                    errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat3 : 第二行冒號後少空白')
+                    errormessage = append_message(errormessage, str(i+1) + ': ' + '6-' + get_error_message(6))
+                    ERR_SET.add(6)
                 elif not functionScript[2]:
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat3 : error line2\n'
-                    errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat3 : 第二行少#號')
+                    errormessage = append_message(errormessage, str(i+1) + ': ' + '7-' + get_error_message(7))
+                    ERR_SET.add(7)
             elif parseStage == 1:
                 if 'UsedByScriptlet' in linestr:
-                    #print(str(i+1) + ': ' + '[shen] UsedByScriptlet found')
                     pass
                 else:
                     parseStage = 2
                     if not linestr.replace('*', '').strip() == '<p>':
-                        #print(str(i+1) + ': ' + 'wrong fromat4 : <p> is required')
-                        #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat6 : <p> is required\n'
-                        errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat6 : 少<p> ')
+                        errormessage = append_message(errormessage, str(i+1) + ': ' + '8-' + get_error_message(8))
+                        ERR_SET.add(8)
             elif parseStage == 2:
                 parseStage = 3
                 if not len(linestr.replace('*','').strip()) > 0:
-                    #print(str(i+1) + ': ' + 'wrong fromat5 : <p> line3 is required')
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat7 : <p> line3 is required\n'
-                    errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat7 : <p> 缺少第三行')
+                    errormessage = append_message(errormessage, str(i+1) + ': ' + '9-' + get_error_message(9))
+                    ERR_SET.add(9)
             elif parseStage == 3:
                 parseStage = 4
                 if not len(linestr.replace('*','').strip()) > 0:
-                    #print(str(i+1) + ': ' + 'wrong fromat6 : <p> line4 is required')
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat8 : <p> line4 is required\n'
-                    errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat8 : 缺少第四行')
+                    errormessage = append_message(errormessage, str(i+1) + ': ' + '10-' + get_error_message(10))
+                    ERR_SET.add(10)
             elif parseStage == 4:
                 if len(linestr.replace('*','').strip()) == 0:
                     spaceline += 1
@@ -177,18 +201,23 @@ def check_correct(java_path):
                     parseStage = 6
             elif parseStage == 6:
                 if spaceline == 0:
-                    #print(str(i+1) + ': ' + 'wrong fromat9 : one empty line required after line 4')
-                    #errormessage = errormessage + str(i+1) + ': ' + 'wrong fromat7 : one empty line required after line 4\n'
-                    errormessage = append_message(errormessage, str(i+1) + ': ' + 'wrong fromat7 : 缺少空白行')
+                    errormessage = append_message(errormessage, str(i+1) + ': ' + '11-' + get_error_message(11))
+                    ERR_SET.add(11)
                     spaceline = -1
-        if ERR_COUUNT == 0:
+        if len(ERR_SET) == 0:
             print('PASS')
+            with open("Output.txt", "a") as text_file:
+                text_file.write('\nPASS')
                 
     
 def check_comment(src_location, txn_assigned):  
+    with open("Output.txt", "w") as text_file:
+        text_file.write(datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
     for txn in txn_assigned:
         files = get_file_path(src_location, txn[0])
         print('\n' + txn[0] + ' ' + txn[1] + ':')
+        with open("Output.txt", "w") as text_file:
+            text_file.write('\n<' + tokens[-1] + '>')
         for file in files:
             check_correct(os.path.join(src_location[1], txn[0], file))
 
