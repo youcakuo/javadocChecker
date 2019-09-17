@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[61]:
+# In[12]:
 
 
 import os
@@ -101,6 +101,7 @@ def check_correct(java_path):
         errormessage = ''
         ERR_COUUNT = 0
         ERR_SET = set()
+        isPass = True
         for i, line in enumerate(f_content):
             linestr = str(line)
             debugline = i
@@ -156,6 +157,7 @@ def check_correct(java_path):
                     with open("Output.txt", "a") as text_file:
                         for err in ERR_SET:
                             text_file.write('\n' + functionScript[1] + ': ' + get_error_message(err))
+                    isPass = False
                     
             if not inblock:
                 continue
@@ -204,7 +206,7 @@ def check_correct(java_path):
                     errormessage = append_message(errormessage, str(i+1) + ': ' + '11-' + get_error_message(11))
                     ERR_SET.add(11)
                     spaceline = -1
-        if len(ERR_SET) == 0:
+        if isPass:
             print('PASS')
             with open("Output.txt", "a") as text_file:
                 text_file.write('\nPASS')
@@ -216,8 +218,8 @@ def check_comment(src_location, txn_assigned):
     for txn in txn_assigned:
         files = get_file_path(src_location, txn[0])
         print('\n' + txn[0] + ' ' + txn[1] + ':')
-        with open("Output.txt", "w") as text_file:
-            text_file.write('\n<' + tokens[-1] + '>')
+        with open("Output.txt", "a") as text_file:
+            text_file.write('\n\n<' + txn[1] + '>')
         for file in files:
             check_correct(os.path.join(src_location[1], txn[0], file))
 
