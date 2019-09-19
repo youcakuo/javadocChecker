@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[12]:
+# In[ ]:
 
 
 import os
@@ -81,8 +81,48 @@ def get_error_message(type):
         msg = '缺少第四行'
     elif type == 11:
         msg = '缺少空白行'
+    elif type == 12:
+        msg = '程式空白拿掉註解'
+    elif type == 13:
+        msg = '第三行描述不符-前'
+    elif type == 14:
+        msg = '第三行描述不符-後'
+    elif type == 15:
+        msg = '@param缺描述'
+    elif type == 16:
+        msg = '@throws缺描述'    
+    elif type == 17:
+        msg = '@param/@throws拼字錯誤'  
+    elif type == 18:
+        msg = '@param/@throws錯誤'
+    elif type == 19:
+        msg = '@param/@throws描述錯誤'
+    elif type == 20:
+        msg = 'void不需要@return'
+    elif type == 21:
+        msg = '@return缺描述' 
     return msg
         
+def parseFunctionName(linestr):
+    tokens = re.split(r'[(]', linestr)
+    if len(tokens) > 0:
+        tokens2 = re.split(r'[ ]', tokens[0])
+        for token in reversed(tokens2):
+            if token.strip():
+                return token
+    else:
+        return None
+
+def check_line3_rule(pstr, funScript):
+    ecode = 0
+    if funScript:
+        if 'before' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
+            if not '前' in pstr:
+                ecode = 13
+        elif 'after' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
+            if not '後' in pstr:
+                ecode = 14
+    return ecode
     
 def check_correct(java_path):
     global debugline
@@ -102,8 +142,13 @@ def check_correct(java_path):
         ERR_COUUNT = 0
         ERR_SET = set()
         isPass = True
+        bufErrMsg = ''
+        params_list = []
+        params_return = None
         for i, line in enumerate(f_content):
             linestr = str(line)
+#             if '70022592' in java_path:
+#                 print(str(parseStage) + ': ' + linestr)
             debugline = i
             if linestr.lstrip().startswith('//'):
                 continue
@@ -115,11 +160,17 @@ def check_correct(java_path):
                 functionScript = None
                 errormessage = ''
                 ERR_SET = set()
+                bufErrMsg = ''
+                params_list = []
+                params_return = None
                 continue
             elif inblock and '*/' in linestr:
                 endcount += 1
-                if parseStage > 0:
+                if parseStage > 0 and parseStage < 8:
                     parseStage = 7
+                elif parseStage > 8:
+                    parseStage = -1
+                    print('parseStage found error')
                 continue
             elif inblock and not linestr.lstrip().startswith('*'):
                 errormessage = append_message(errormessage, str(i+1) + ': ' + '1-' + get_error_message(1))
@@ -133,10 +184,7 @@ def check_correct(java_path):
                 if not functionScript:
                     parseStage = -1
                     continue
-                if functionScript[0] == 'Method':
-                    parseStage = -1
-                    print(str(i+1) + ': ' + functionScript[1] + ' check required')
-                if 'Scriptlet' in linestr:
+                elif 'Scriptlet' in linestr:
                     if functionScript:
                         tokens = re.split(r'[@("]', linestr)
                         if tokens[1] != functionScript[0]:
@@ -150,14 +198,77 @@ def check_correct(java_path):
                 else:
                     parseStage = 8
             if parseStage == 8:
+                #parseStage = -1
+                #check if params are aligned with javadoc description
+                tokens = re.split(r'[()]', linestr.strip())
+                if len(tokens) > 2:
+                    para_tokens = re.split(r'[,]', tokens[1])
+                    isVoidRetrun = True if 'void' in tokens[0] else False
+                    if not 'throws' in tokens[2]:
+                        throws_tokens = []
+                    else:
+                        throws_tokens = re.split(r'[,]', tokens[2][tokens[2].find('throws')+6:tokens[2].find('{')])
+                    if len(params_list) != len(para_tokens) + len(throws_tokens):
+                        ERR_SET.add(18)
+                    else:
+                        for ip, para in enumerate(para_tokens):
+                            para_token = re.split(r'[ ]', para.strip())
+                            if para_token[-1].strip() != params_list[ip][0]:
+                                ERR_SET.add(18)
+                            elif para_token[0].strip() == 'TfbNbtsFacadeProxy' and params_list[ip][1] != '流程Facade':
+                                ERR_SET.add(18)
+                                print(params_list[ip][1])
+                            elif para_token[0].strip() == 'FlowContext' and params_list[ip][0] == 'c' and params_list[ip][1] != '交易內文':
+                                ERR_SET.add(18)
+                                print(params_list[ip][1])
+                            elif para_token[0].strip() == 'Notification' and params_list[ip][1] != '通知':
+                                ERR_SET.add(18)
+                                print(params_list[ip][1])
+                            elif para_token[0].strip() == 'FlowContext' and params_list[ip][0] == 'cs' and params_list[ip][1] != '來源交易內文':
+                                ERR_SET.add(18)
+                                print(params_list[ip][1])
+                            elif para_token[0].strip() == 'FlowContext' and params_list[ip][0] == 'ct' and params_list[ip][1] != '目的交易內文':
+                                ERR_SET.add(18)
+                        for it, throw in enumerate(throws_tokens):
+                            if throw.strip() != params_list[len(para_tokens) + it][0]:
+                                ERR_SET.add(18)
+                            elif params_list[len(para_tokens) + it][1] != '例外錯誤':
+                                ERR_SET.add(18)
+                        if isVoidRetrun and params_return:
+                            ERR_SET.add(20)
+                else:
+                    if len(params_list) > 0:
+                        ERR_SET.add(18)
+                    
                 tokens = re.split(r'[ ]', linestr.lstrip())
-                parseStage = -1
                 if tokens[0] == 'public' and len(ERR_SET) > 0:
+                    parseStage = 9
                     #print(functionScript[1]+ ':\n' + errormessage)
-                    with open("Output.txt", "a") as text_file:
-                        for err in ERR_SET:
-                            text_file.write('\n' + functionScript[1] + ': ' + get_error_message(err))
+                    #with open("Output.txt", "a") as text_file:
+                    for err in ERR_SET:
+                        #text_file.write('\n' + functionScript[1] + ': ' + get_error_message(err))
+                        if parseFunctionName(linestr):
+                            bufErrMsg += '\n' + parseFunctionName(linestr) + ': ' + get_error_message(err)
+                        else:
+                            bufErrMsg += '\n' + functionScript[1] + ': ' + get_error_message(err)
                     isPass = False
+                elif tokens[0] == 'public':
+                    parseStage = 9
+                else:
+                    parseStage = -1
+            elif parseStage == 9:
+                parseStage = -1
+                linep = linestr[:linestr.find('//')].strip()
+                if linep.startswith('}'):
+                    isPass = False
+                    bufErrMsg = '\n' + functionScript[1] + ': ' + get_error_message(12)
+                    with open("Output.txt", "a") as text_file:
+                        text_file.write(bufErrMsg)
+                elif linep:
+                    with open("Output.txt", "a") as text_file:
+                        text_file.write(bufErrMsg)
+                else:
+                    parseStage = 9
                     
             if not inblock:
                 continue
@@ -186,6 +297,9 @@ def check_correct(java_path):
                 if not len(linestr.replace('*','').strip()) > 0:
                     errormessage = append_message(errormessage, str(i+1) + ': ' + '9-' + get_error_message(9))
                     ERR_SET.add(9)
+                errcode = check_line3_rule(linestr, functionScript)
+                if errcode > 0:
+                    ERR_SET.add(errcode)
             elif parseStage == 3:
                 parseStage = 4
                 if not len(linestr.replace('*','').strip()) > 0:
@@ -201,11 +315,40 @@ def check_correct(java_path):
                     continue
                 else:
                     parseStage = 6
-            elif parseStage == 6:
+            if parseStage == 6:
                 if spaceline == 0:
                     errormessage = append_message(errormessage, str(i+1) + ': ' + '11-' + get_error_message(11))
                     ERR_SET.add(11)
                     spaceline = -1
+                if functionScript[0] == 'Method':
+                    if '@' in linestr:
+                        continue
+                    print(str(i+1) + ': ' + functionScript[1] + ' check required')
+                    if tokens[3] != functionScript[1]:
+                        errormessage = append_message(errormessage, str(i+1) + ': ' + '4-' + get_error_message(4))
+                        ERR_SET.add(4)
+                #handle @param and @throws
+                if '@param' in linestr or '@throws' in linestr:
+                    tokens = re.split(r'[ ]', linestr.strip())
+                    if len(tokens) < 4:
+                        if '@param' == tokens[1].strip():
+                            ERR_SET.add(15)
+                        elif '@throws' == tokens[1].strip():
+                            ERR_SET.add(16)
+                        else:
+                            ERR_SET.add(17)
+                    else:
+                        params_list.append((tokens[2], tokens[3]))
+                elif '@return' in linestr:
+                    tokens = re.split(r'[ ]', linestr.strip())
+                    if len(tokens) < 3:
+                        if '@return' == tokens[1].strip():
+                            ERR_SET.add(21)
+                        else:
+                            ERR_SET.add(17)
+                    else:
+                        params_return = tokens[2]
+
         if isPass:
             print('PASS')
             with open("Output.txt", "a") as text_file:
