@@ -1,0 +1,7 @@
+*.spec
+__pycache__/
+build/
+dist/
+.idea/
+*.csv
+*.txt
