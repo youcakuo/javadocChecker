@@ -9,6 +9,7 @@ import csv
 import re
 import traceback
 import datetime
+import zipfile
 
 debugline = 0
 
@@ -24,7 +25,7 @@ def get_source_location():
     else:
         txn_path = ''
     return (repo_path, txn_path)
-    
+
 def get_check_txn():
     txn_list = []
     with open('check.csv', newline='') as csvfile:
@@ -123,12 +124,48 @@ def check_line3_rule(pstr, funScript):
             if not '後' in pstr:
                 ecode = 14
     return ecode
-    
+
+def get_xml_location():
+    paths = get_source_location()
+    #return paths[0] + '/infinity-module-tfbnbtsdesigns/src/main/design/flowEngine/flows/flows.jar'
+    return 'C:\\iisi\\infinity-developer\\repos\\infinity-application-tfbnbts-transactions\\infinity-module-tfbnbtsdesigns\\src\\main\\design\\flowEngine\\flows\\flows.jar'
+
+def getXmlFile(txn):
+    txn = txn.lower()
+    if not txn.startswith('tx'):
+        txn = 'tx' + txn
+    if txn.endswith('java'):
+        txn = txn[:-4]
+    if not txn.endswith('.'):
+        txn = txn + '.xml'
+    else:
+        txn = txn + 'xml'
+    return txn
+
+def getRuleStatements(txn):
+    rule_statement = ''
+    # xml_file = getXmlFile(txn)
+    # archive = zipfile.ZipFile(get_xml_location(), 'r')
+    # xmldata = archive.read(xml_file)
+    # for line in xmldata:
+    #     print(line)
+    #     if 'ruleStatements' in line:
+    #         findRule = True
+    #     elif findRule:
+    #         parseStatement = line[line.find('__JAVA__') + 8:]
+    #         tokens = re.split(r'[\]]', parseStatement)
+    #         rule_statement = tokens[0]
+    #         print('Shen for debug, find rule_statement: ' + rule_statement)
+    #         break
+    return rule_statement
+
+
 def check_correct(java_path):
     global debugline
     debug = False
     tokens = re.split(r'[\\/]', java_path)
     print(tokens[-1])
+    #ruleStagement = getRuleStatements(tokens[-1])
     with open("Output.txt", "a") as text_file:
         text_file.write('\n<' + tokens[-1] + '>')
     begincount = 0
