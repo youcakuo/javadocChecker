@@ -9,11 +9,12 @@ import csv
 import re
 import traceback
 import datetime
-import zipfile
+import xml.etree.ElementTree as ET
 
 debugline = 0
 
 def get_source_location():
+    """determine where source code locate"""
     repo_path = ''
     txn_dirs = ["c://iisi/infinity-developer/repos/infinity-application-tfbnbts-transactions","d://iisi/infinity-developer/repos/infinity-application-tfbnbts-transactions","c://iisi/develop/infinity-developer/repos/infinity-application-tfbnbts-transactions","d://iisi/develop/infinity-developer/repos/infinity-application-tfbnbts-transactions"]
     for txn_dir in txn_dirs:
@@ -101,7 +102,9 @@ def get_error_message(type):
     elif type == 20:
         msg = 'void不需要@return'
     elif type == 21:
-        msg = '@return缺描述' 
+        msg = '@return缺描述'
+    elif type == 22:
+        msg = 'UsedByScriptlet錯誤'
     return msg
         
 def parseFunctionName(linestr):
@@ -127,23 +130,72 @@ def check_line3_rule(pstr, funScript):
 
 def get_xml_location():
     paths = get_source_location()
-    #return paths[0] + '/infinity-module-tfbnbtsdesigns/src/main/design/flowEngine/flows/flows.jar'
-    return 'C:\\iisi\\infinity-developer\\repos\\infinity-application-tfbnbts-transactions\\infinity-module-tfbnbtsdesigns\\src\\main\\design\\flowEngine\\flows\\flows.jar'
+    return paths[0] + '/infinity-module-tfbnbtsdesigns/src/main/design/flowEngine/flows/flows.jar'
+    #return 'C:\\iisi\\infinity-developer\\repos\\infinity-application-tfbnbts-transactions\\infinity-module-tfbnbtsdesigns\\src\\main\\design\\flowEngine\\flows\\flows.jar'
 
 def getXmlFile(txn):
     txn = txn.lower()
-    if not txn.startswith('tx'):
-        txn = 'tx' + txn
+    # if not txn.startswith('tx'):
+    #     txn = 'tx' + txn
     if txn.endswith('java'):
         txn = txn[:-4]
     if not txn.endswith('.'):
         txn = txn + '.xml'
     else:
         txn = txn + 'xml'
-    return txn
+    result = os.path.join(get_xml_location(), txn)
+    print(result)
+    if os.path.isfile(result):
+        return result
+    else:
+        return None
+
+def is_crossValidation(tree):
+    for child in tree:
+        if child.attrib['name'] == 'objectName' and child.attrib['value'] == 'MNM:type=com.iisigroup.infinity.modules.crossvalidation.CrossValidation,name=crossValidation':
+            return True
+    return False
 
 def getRuleStatements(txn):
     rule_statement = ''
+    xmlfile = getXmlFile(txn)
+    if xmlfile:
+        print('parse xml file: ' + xmlfile)
+        tree = ET.parse(xmlfile)
+        root = tree.getroot()
+        # for child_of_root in root:
+        #     #print(child_of_root.attrib['id'])
+        #     if 'CrossValidation' in child_of_root.attrib['id']:
+        #         print('get')
+        #         for child_child in child_of_root:
+        #             print(child_child.attrib)
+        for child in root:
+            #if child.attrib['id'] == 'tx02004503.CrossValidation':
+            if is_crossValidation(child):
+                #print('shen for debug 1')
+                for child2 in child:
+                    #print(child2.tag, child2.attrib)
+                    if child2.attrib['name'] == 'attributes':
+                        #print('shen for debug 2')
+                        for child3 in child2:
+                            #print(child3.tag, child3.attrib)
+                            if child3.tag == '{http://www.springframework.org/schema/beans}map':
+                                #print('shen for debug 3')
+                                for child4 in child3:
+                                    if child4.attrib['key'] == 'rules':
+                                        #print('shen for debug 4')
+                                        for child5 in child4:
+                                            #print('shen for debug 5')
+                                            #print(child5.tag, child5.attrib)
+                                            for child6 in child5:
+                                                #print('shen for debug 6')
+                                                #print(child6.tag, child6.attrib)
+                                                for child7 in child6:
+                                                    if child7.attrib['key'] == 'ruleStatements':
+                                                        #print('shen for debug 7')
+                                                        for child8 in child7:
+                                                            #print(child8.text)
+                                                            rule_statement = re.split(r'[\n]', child8.text)[0][12:]
     # xml_file = getXmlFile(txn)
     # archive = zipfile.ZipFile(get_xml_location(), 'r')
     # xmldata = archive.read(xml_file)
@@ -165,7 +217,8 @@ def check_correct(java_path):
     debug = False
     tokens = re.split(r'[\\/]', java_path)
     print(tokens[-1])
-    #ruleStagement = getRuleStatements(tokens[-1])
+    ruleStagement = getRuleStatements(tokens[-1])
+    print('shen for debug ruleStagement: ' + ruleStagement)
     with open("Output.txt", "a") as text_file:
         text_file.write('\n<' + tokens[-1] + '>')
     begincount = 0
@@ -184,8 +237,8 @@ def check_correct(java_path):
         params_return = None
         for i, line in enumerate(f_content):
             linestr = str(line)
-#             if '70022592' in java_path:
-#                 print(str(parseStage) + ': ' + linestr)
+            if '70023017' in java_path:
+                print(str(parseStage) + ': ' + linestr)
             debugline = i
             if linestr.lstrip().startswith('//'):
                 continue
@@ -246,36 +299,49 @@ def check_correct(java_path):
                     else:
                         throws_tokens = re.split(r'[,]', tokens[2][tokens[2].find('throws')+6:tokens[2].find('{')])
                     if len(params_list) != len(para_tokens) + len(throws_tokens):
+                        print(params_list)
+                        print(para_tokens)
+                        print(throws_tokens)
+                        print('shen 0')
                         ERR_SET.add(18)
                     else:
                         for ip, para in enumerate(para_tokens):
                             para_token = re.split(r'[ ]', para.strip())
                             if para_token[-1].strip() != params_list[ip][0]:
                                 ERR_SET.add(18)
+                                print('shen 1')
                             elif para_token[0].strip() == 'TfbNbtsFacadeProxy' and params_list[ip][1] != '流程Facade':
                                 ERR_SET.add(18)
+                                print('shen 2')
                                 print(params_list[ip][1])
                             elif para_token[0].strip() == 'FlowContext' and params_list[ip][0] == 'c' and params_list[ip][1] != '交易內文':
                                 ERR_SET.add(18)
+                                print('shen 3')
                                 print(params_list[ip][1])
                             elif para_token[0].strip() == 'Notification' and params_list[ip][1] != '通知':
                                 ERR_SET.add(18)
+                                print('shen 4')
                                 print(params_list[ip][1])
                             elif para_token[0].strip() == 'FlowContext' and params_list[ip][0] == 'cs' and params_list[ip][1] != '來源交易內文':
                                 ERR_SET.add(18)
+                                print('shen 5')
                                 print(params_list[ip][1])
                             elif para_token[0].strip() == 'FlowContext' and params_list[ip][0] == 'ct' and params_list[ip][1] != '目的交易內文':
                                 ERR_SET.add(18)
+                                print('shen 6')
                         for it, throw in enumerate(throws_tokens):
                             if throw.strip() != params_list[len(para_tokens) + it][0]:
                                 ERR_SET.add(18)
+                                print('shen 7')
                             elif params_list[len(para_tokens) + it][1] != '例外錯誤':
                                 ERR_SET.add(18)
+                                print('shen 8')
                         if isVoidRetrun and params_return:
                             ERR_SET.add(20)
                 else:
                     if len(params_list) > 0:
                         ERR_SET.add(18)
+                        print('shen 9')
                     
                 tokens = re.split(r'[ ]', linestr.lstrip())
                 if tokens[0] == 'public' and len(ERR_SET) > 0:
@@ -323,7 +389,10 @@ def check_correct(java_path):
                     ERR_SET.add(7)
             elif parseStage == 1:
                 if 'UsedByScriptlet' in linestr:
-                    pass
+                    if not linestr[linestr.find(':') + 1:].strip() == ruleStagement:
+                        print('shen for debug check: ' + linestr[linestr.find(':') + 1:].strip())
+                        errormessage = append_message(errormessage, str(i + 1) + ': ' + '22-' + get_error_message(22))
+                        ERR_SET.add(22)
                 else:
                     parseStage = 2
                     if not linestr.replace('*', '').strip() == '<p>':
@@ -358,12 +427,13 @@ def check_correct(java_path):
                     ERR_SET.add(11)
                     spaceline = -1
                 if functionScript[0] == 'Method':
-                    if '@' in linestr:
-                        continue
-                    print(str(i+1) + ': ' + functionScript[1] + ' check required')
-                    if tokens[3] != functionScript[1]:
-                        errormessage = append_message(errormessage, str(i+1) + ': ' + '4-' + get_error_message(4))
-                        ERR_SET.add(4)
+                    # if '@' in linestr:
+                    #     continue
+                    #print(str(i+1) + ': ' + functionScript[1] + ' check required')
+                    if not '@' in linestr:
+                        if tokens[3] != functionScript[1]:
+                            errormessage = append_message(errormessage, str(i+1) + ': ' + '4-' + get_error_message(4))
+                            ERR_SET.add(4)
                 #handle @param and @throws
                 if '@param' in linestr or '@throws' in linestr:
                     tokens = re.split(r'[ ]', linestr.strip())
