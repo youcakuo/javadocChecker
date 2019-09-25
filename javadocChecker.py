@@ -39,8 +39,11 @@ def get_check_txn():
 
 def get_file_path(location, txn):
     path = os.path.join(location[1], txn)
-    java_files = [f for f in os.listdir(path) if f.endswith('.java')]
-    return java_files
+    if os.path.isdir(path):
+        java_files = [f for f in os.listdir(path) if f.endswith('.java')]
+        return java_files
+    else:
+        return None
 
 def getFunctionScript(str):
     tokens = re.split( r'[*#:]', str )
@@ -119,13 +122,13 @@ def parseFunctionName(linestr):
 
 def check_line3_rule(pstr, funScript):
     ecode = 0
-    if funScript:
-        if 'before' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
-            if not '前' in pstr:
-                ecode = 13
-        elif 'after' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
-            if not '後' in pstr:
-                ecode = 14
+    # if funScript:
+    #     if 'before' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
+    #         if not '前' in pstr:
+    #             ecode = 13
+    #     elif 'after' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
+    #         if not '後' in pstr:
+    #             ecode = 14
     return ecode
 
 def get_xml_location():
@@ -144,7 +147,7 @@ def getXmlFile(txn):
     else:
         txn = txn + 'xml'
     result = os.path.join(get_xml_location(), txn)
-    print(result)
+    #print(result)
     if os.path.isfile(result):
         return result
     else:
@@ -196,19 +199,6 @@ def getRuleStatements(txn):
                                                         for child8 in child7:
                                                             #print(child8.text)
                                                             rule_statement = re.split(r'[\n]', child8.text)[0][12:]
-    # xml_file = getXmlFile(txn)
-    # archive = zipfile.ZipFile(get_xml_location(), 'r')
-    # xmldata = archive.read(xml_file)
-    # for line in xmldata:
-    #     print(line)
-    #     if 'ruleStatements' in line:
-    #         findRule = True
-    #     elif findRule:
-    #         parseStatement = line[line.find('__JAVA__') + 8:]
-    #         tokens = re.split(r'[\]]', parseStatement)
-    #         rule_statement = tokens[0]
-    #         print('Shen for debug, find rule_statement: ' + rule_statement)
-    #         break
     return rule_statement
 
 
@@ -218,7 +208,7 @@ def check_correct(java_path):
     tokens = re.split(r'[\\/]', java_path)
     print(tokens[-1])
     ruleStagement = getRuleStatements(tokens[-1])
-    print('shen for debug ruleStagement: ' + ruleStagement)
+    print('ruleStagement: ' + ruleStagement)
     with open("Output.txt", "a") as text_file:
         text_file.write('\n<' + tokens[-1] + '>')
     begincount = 0
@@ -237,7 +227,7 @@ def check_correct(java_path):
         params_return = None
         for i, line in enumerate(f_content):
             linestr = str(line)
-            if '70023017' in java_path:
+            if '12250300' in java_path:
                 print(str(parseStage) + ': ' + linestr)
             debugline = i
             if linestr.lstrip().startswith('//'):
@@ -299,10 +289,7 @@ def check_correct(java_path):
                     else:
                         throws_tokens = re.split(r'[,]', tokens[2][tokens[2].find('throws')+6:tokens[2].find('{')])
                     if len(params_list) != len(para_tokens) + len(throws_tokens):
-                        print(params_list)
-                        print(para_tokens)
-                        print(throws_tokens)
-                        print('shen 0')
+                        #print('shen 0')
                         ERR_SET.add(18)
                     else:
                         for ip, para in enumerate(para_tokens):
@@ -390,7 +377,7 @@ def check_correct(java_path):
             elif parseStage == 1:
                 if 'UsedByScriptlet' in linestr:
                     if not linestr[linestr.find(':') + 1:].strip() == ruleStagement:
-                        print('shen for debug check: ' + linestr[linestr.find(':') + 1:].strip())
+                        print('debug check: ' + linestr[linestr.find(':') + 1:].strip())
                         errormessage = append_message(errormessage, str(i + 1) + ': ' + '22-' + get_error_message(22))
                         ERR_SET.add(22)
                 else:
@@ -426,7 +413,7 @@ def check_correct(java_path):
                     errormessage = append_message(errormessage, str(i+1) + ': ' + '11-' + get_error_message(11))
                     ERR_SET.add(11)
                     spaceline = -1
-                if functionScript[0] == 'Method':
+                if functionScript and functionScript[0] == 'Method':
                     # if '@' in linestr:
                     #     continue
                     #print(str(i+1) + ': ' + functionScript[1] + ' check required')
@@ -470,8 +457,11 @@ def check_comment(src_location, txn_assigned):
         print('\n' + txn[0] + ' ' + txn[1] + ':')
         with open("Output.txt", "a") as text_file:
             text_file.write('\n\n<' + txn[1] + '>')
-        for file in files:
-            check_correct(os.path.join(src_location[1], txn[0], file))
+            if not files:
+                text_file.write('\n[WARNNING] No folder found: ' + txn[0])
+        if files:
+            for file in files:
+                check_correct(os.path.join(src_location[1], txn[0], file))
 
 def main():
     global debugline
