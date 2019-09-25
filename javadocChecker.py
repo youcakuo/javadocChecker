@@ -12,6 +12,7 @@ import datetime
 import xml.etree.ElementTree as ET
 
 debugline = 0
+txn_to_debug = '90040030'
 
 def get_source_location():
     """determine where source code locate"""
@@ -107,7 +108,7 @@ def get_error_message(type):
     elif type == 21:
         msg = '@return缺描述'
     elif type == 22:
-        msg = 'UsedByScriptlet錯誤'
+        msg = 'UsedByScriptlet錯誤(或編輯器有多個CrossValidation模組)'
     return msg
         
 def parseFunctionName(linestr):
@@ -122,13 +123,13 @@ def parseFunctionName(linestr):
 
 def check_line3_rule(pstr, funScript):
     ecode = 0
-    # if funScript:
-    #     if 'before' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
-    #         if not '前' in pstr:
-    #             ecode = 13
-    #     elif 'after' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
-    #         if not '後' in pstr:
-    #             ecode = 14
+    if funScript and False:
+        if 'before' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
+            if not '前' in pstr:
+                ecode = 13
+        elif 'after' in funScript[1].lower() and 'CommentScriptlet' == funScript[0]:
+            if not '後' in pstr:
+                ecode = 14
     return ecode
 
 def get_xml_location():
@@ -227,7 +228,8 @@ def check_correct(java_path):
         params_return = None
         for i, line in enumerate(f_content):
             linestr = str(line)
-            if '12250300' in java_path:
+            global txn_to_debug
+            if txn_to_debug and txn_to_debug in java_path:
                 print(str(parseStage) + ': ' + linestr)
             debugline = i
             if linestr.lstrip().startswith('//'):
@@ -282,14 +284,23 @@ def check_correct(java_path):
                 #check if params are aligned with javadoc description
                 tokens = re.split(r'[()]', linestr.strip())
                 if len(tokens) > 2:
-                    para_tokens = re.split(r'[,]', tokens[1])
+                    FunctioinParameters = tokens[1]
+                    #remove parameter with <>, like Map<String, String>
+                    while FunctioinParameters.find('<') > 0:
+                        rm_from = FunctioinParameters.find('<')
+                        rm_to = FunctioinParameters.find('>')
+                        FunctioinParameters = FunctioinParameters[:rm_from] + FunctioinParameters[rm_to+1:]
+                    para_tokens = re.split(r'[,]', FunctioinParameters)
                     isVoidRetrun = True if 'void' in tokens[0] else False
                     if not 'throws' in tokens[2]:
                         throws_tokens = []
                     else:
                         throws_tokens = re.split(r'[,]', tokens[2][tokens[2].find('throws')+6:tokens[2].find('{')])
                     if len(params_list) != len(para_tokens) + len(throws_tokens):
-                        #print('shen 0')
+                        print(params_list)
+                        print(para_tokens)
+                        print(throws_tokens)
+                        print('shen 0')
                         ERR_SET.add(18)
                     else:
                         for ip, para in enumerate(para_tokens):
@@ -376,8 +387,9 @@ def check_correct(java_path):
                     ERR_SET.add(7)
             elif parseStage == 1:
                 if 'UsedByScriptlet' in linestr:
-                    if not linestr[linestr.find(':') + 1:].strip() == ruleStagement:
-                        print('debug check: ' + linestr[linestr.find(':') + 1:].strip())
+                    if not linestr[linestr.find(':') + 1:].strip() == ruleStagement.strip():
+                        print('debug check: "' + linestr[linestr.find(':') + 1:].strip() + '"')
+                        print('debug chek2: "' + ruleStagement.strip() + '"')
                         errormessage = append_message(errormessage, str(i + 1) + ': ' + '22-' + get_error_message(22))
                         ERR_SET.add(22)
                 else:
@@ -456,12 +468,46 @@ def check_comment(src_location, txn_assigned):
         files = get_file_path(src_location, txn[0])
         print('\n' + txn[0] + ' ' + txn[1] + ':')
         with open("Output.txt", "a") as text_file:
-            text_file.write('\n\n<' + txn[1] + '>')
+            text_file.write('\n\n<' + txn[1] + '>' + ' : ' + txn[0])
             if not files:
                 text_file.write('\n[WARNNING] No folder found: ' + txn[0])
         if files:
             for file in files:
                 check_correct(os.path.join(src_location[1], txn[0], file))
+
+def writeOutputToCsv(outfilename, csvfilename):
+    with open(csvfilename, 'w', newline='') as csvfile:
+        fieldnames = ['txn', 'owner', 'result']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        txn = ''
+        owner = ''
+        result = ''
+        stage = 0
+        with open(outfilename, "r") as result_file:
+            f_content = result_file.readlines()
+            for line in f_content:
+                strline = str(line).strip()
+                if stage == 0:
+                    tokens = re.split(r'[:]', strline)
+                    if len(tokens) < 2:
+                        continue
+                    towner = tokens[0].strip()
+                    txn = tokens[1].strip()
+                    if towner.startswith('<') and towner.endswith('>'):
+                        owner = towner[1:-1]
+                        stage = 1
+                elif stage == 1:
+                    if strline:
+                        result = result + strline + '\n'
+                    else:
+                        stage = 0
+                        writer.writerow({'txn': txn, 'owner': owner, 'result': result})
+                        owner = ''
+                        result = ''
+                        txn = ''
+            if txn:
+                writer.writerow({'txn': txn, 'owner': owner, 'result': result})
 
 def main():
     global debugline
@@ -472,6 +518,10 @@ def main():
     except Exception as e:
         print('error at ' + str(debugline))
         traceback.print_exc()
+    csvfile = datetime.datetime.now().strftime("%Y%m%d%I%M") + '.csv'
+    print(csvfile)
+    writeOutputToCsv('Output.txt', csvfile)
+
 if __name__ == '__main__':
     try:
         main()
