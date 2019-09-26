@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
-
-
 import os
 import csv
 import re
@@ -12,12 +9,12 @@ import datetime
 import xml.etree.ElementTree as ET
 
 debugline = 0
-txn_to_debug = '90040030'
+txn_to_debug = ''
 
 def get_source_location():
     """determine where source code locate"""
     repo_path = ''
-    txn_dirs = ["c://iisi/infinity-developer/repos/infinity-application-tfbnbts-transactions","d://iisi/infinity-developer/repos/infinity-application-tfbnbts-transactions","c://iisi/develop/infinity-developer/repos/infinity-application-tfbnbts-transactions","d://iisi/develop/infinity-developer/repos/infinity-application-tfbnbts-transactions"]
+    txn_dirs = ["c://iisi/infinity-developer/repos/infinity-application-tfbnbts-transactions","d://iisi/infinity-developer/repos/infinity-application-tfbnbts-transactions","c://iisi/develop/infinity-developer/repos/infinity-application-tfbnbts-transactions","d://iisi/develop/infinity-developer/repos/infinity-application-tfbnbts-transactions","c://infinity/repos/infinity-application-tfbnbts-transactions"]
     for txn_dir in txn_dirs:
             if os.path.isdir(txn_dir):
                 repo_path = txn_dir
@@ -135,12 +132,9 @@ def check_line3_rule(pstr, funScript):
 def get_xml_location():
     paths = get_source_location()
     return paths[0] + '/infinity-module-tfbnbtsdesigns/src/main/design/flowEngine/flows/flows.jar'
-    #return 'C:\\iisi\\infinity-developer\\repos\\infinity-application-tfbnbts-transactions\\infinity-module-tfbnbtsdesigns\\src\\main\\design\\flowEngine\\flows\\flows.jar'
 
 def getXmlFile(txn):
     txn = txn.lower()
-    # if not txn.startswith('tx'):
-    #     txn = 'tx' + txn
     if txn.endswith('java'):
         txn = txn[:-4]
     if not txn.endswith('.'):
@@ -148,7 +142,6 @@ def getXmlFile(txn):
     else:
         txn = txn + 'xml'
     result = os.path.join(get_xml_location(), txn)
-    #print(result)
     if os.path.isfile(result):
         return result
     else:
@@ -167,12 +160,6 @@ def getRuleStatements(txn):
         print('parse xml file: ' + xmlfile)
         tree = ET.parse(xmlfile)
         root = tree.getroot()
-        # for child_of_root in root:
-        #     #print(child_of_root.attrib['id'])
-        #     if 'CrossValidation' in child_of_root.attrib['id']:
-        #         print('get')
-        #         for child_child in child_of_root:
-        #             print(child_child.attrib)
         for child in root:
             #if child.attrib['id'] == 'tx02004503.CrossValidation':
             if is_crossValidation(child):
@@ -273,6 +260,8 @@ def check_correct(java_path):
                             errormessage = append_message(errormessage, str(i+1) + ': ' + '3-' + get_error_message(3))
                             ERR_SET.add(3)
                         if tokens[3] != functionScript[1]:
+                            print('id check: ' + tokens[3])
+                            print('id chec2: ' + functionScript[1])
                             errormessage = append_message(errormessage, str(i+1) + ': ' + '4-' + get_error_message(4))
                             ERR_SET.add(4)
                 elif '@' in linestr:
@@ -431,6 +420,8 @@ def check_correct(java_path):
                     #print(str(i+1) + ': ' + functionScript[1] + ' check required')
                     if not '@' in linestr:
                         if tokens[3] != functionScript[1]:
+                            print('id check: ' + tokens[3])
+                            print('id chec2: ' + functionScript[1])
                             errormessage = append_message(errormessage, str(i+1) + ': ' + '4-' + get_error_message(4))
                             ERR_SET.add(4)
                 #handle @param and @throws
@@ -459,8 +450,7 @@ def check_correct(java_path):
             print('PASS')
             with open("Output.txt", "a") as text_file:
                 text_file.write('\nPASS')
-                
-    
+
 def check_comment(src_location, txn_assigned):  
     with open("Output.txt", "w") as text_file:
         text_file.write(datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y"))
@@ -518,7 +508,7 @@ def main():
     except Exception as e:
         print('error at ' + str(debugline))
         traceback.print_exc()
-    csvfile = datetime.datetime.now().strftime("%Y%m%d%I%M") + '.csv'
+    csvfile = datetime.datetime.now().strftime("%Y%m%d%H%M") + '.csv'
     print(csvfile)
     writeOutputToCsv('Output.txt', csvfile)
 
@@ -528,4 +518,3 @@ if __name__ == '__main__':
     finally:
         print('press Enter to continue...')
         #input()
-
