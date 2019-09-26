@@ -106,6 +106,10 @@ def get_error_message(type):
         msg = '@return缺描述'
     elif type == 22:
         msg = 'UsedByScriptlet錯誤(或編輯器有多個CrossValidation模組)'
+    elif type == 23:
+        msg = '缺@return'
+    elif type == 24:
+        msg = '第三第四行不可以@開頭'
     return msg
         
 def parseFunctionName(linestr):
@@ -325,6 +329,8 @@ def check_correct(java_path):
                                 print('shen 8')
                         if isVoidRetrun and params_return:
                             ERR_SET.add(20)
+                        elif not isVoidRetrun and not params_return:
+                            ERR_SET.add(23)
                 else:
                     if len(params_list) > 0:
                         ERR_SET.add(18)
@@ -394,11 +400,15 @@ def check_correct(java_path):
                 errcode = check_line3_rule(linestr, functionScript)
                 if errcode > 0:
                     ERR_SET.add(errcode)
+                if linestr.replace('*', '').strip().startswith('@'):
+                    ERR_SET.add(24)
             elif parseStage == 3:
                 parseStage = 4
                 if not len(linestr.replace('*','').strip()) > 0:
                     errormessage = append_message(errormessage, str(i+1) + ': ' + '10-' + get_error_message(10))
                     ERR_SET.add(10)
+                if linestr.replace('*', '').strip().startswith('@'):
+                    ERR_SET.add(24)
             elif parseStage == 4:
                 if len(linestr.replace('*','').strip()) == 0:
                     spaceline += 1
